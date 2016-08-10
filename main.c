@@ -19,8 +19,11 @@ static int stack[1024 * 2] = {-1}; //The stack which is used to push values to o
 static int tail = -1; //This is the last used position on the stack (eg, after one insert, tail will be set to 0).
 static int registers[1024 * 8] = {-1}; //The registers which data may be set/retrieved to/from during program execution. IE: Memory.
 static int markers[1024 * 8] = {-1}; //Used to tell us what kind of data a value in a register actually represents (eg: setting
-static int specialIdentifierAtStackPosition[1024] = {0};
+static int specialIdentifierAtStackPosition[1024];
+static int functions[128][2] = {-1}; //A list of functions stored by the program. functions[][0] contains the instruction number, and [][1] contains the number of args.
 
+const int _IDENTIFIER_FUNCTION_DECLARE = -132; //A flag used to identify a function declaration, which we ignore for now.
+const int _IDENTIFIER_FUNCTION = -131; //A flag that to identify when we were in a function call.
 const int _IDENTIFIER_FAILED_IF = -130; //A flag that, if pushed the the stack, will cause the program to cease execution of instructions until an END statement is met.
 const int _IDENTIFIER_GOOD_IF = -129; //A flag used to identify IF conditions which the program is to go inside of.
 const int _IDENTIFIER_CHAR = -128; //A flag used to identify that the register represents a character.
@@ -88,7 +91,10 @@ void interpret(int numInstructions){
             if(instructions[i] == 0x13){
                 push(_IDENTIFIER_FAILED_IF);
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FAILED_IF;
-            }else if(instructions[i] == 0x08) pop();
+            }else if(instructions[i] == 0x08) pop(); //Pops off the IF call.
+            continue;
+        }else if(peek() == _IDENTIFIER_FUNCTION_DECLARE && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FUNCTION_DECLARE){
+            if(instructions[i] == 0x08) pop(); //Pops off the FUNCTION_DECLARE call.
             continue;
         }
         switch(instructions[i]){
@@ -130,8 +136,16 @@ void interpret(int numInstructions){
                 else printf("%d\n", pop());
                 break;
             case 0x08: //END: END: Ends the current block.
-                pop();
-                specialIdentifierAtStackPosition[tail] = 0;
+                while(!( (peek() == _IDENTIFIER_FUNCTION && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FUNCTION)
+                        || (peek() == _IDENTIFIER_FAILED_IF && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FAILED_IF)
+                        || (peek() == _IDENTIFIER_GOOD_IF && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_GOOD_IF) ) ) {
+                    if(tail == -1) break;
+                    pop(); //Until we get to a condition we want, let's keep popping values.
+                }
+                if(peek() == _IDENTIFIER_FUNCTION && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FUNCTION){
+                    pop();
+                    i = pop(); //Return to calling instruction.
+                }else pop();
                 break;
             case 0x09: //GET_REGISTER: a GET_REGISTER: Pushes the value of register a to the stack.
                 a = pop();
@@ -188,9 +202,14 @@ void interpret(int numInstructions){
                 break;
             case 0x13: //IF: a IF: continues in block IFF a is equal to 1.
                 a = pop();
-                if(a == 0) push(_IDENTIFIER_FAILED_IF);
-                else push(_IDENTIFIER_GOOD_IF);
-                specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FAILED_IF;
+                if(a == 0){
+                    push(_IDENTIFIER_FAILED_IF);
+                    specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FAILED_IF;
+                }
+                else{
+                    push(_IDENTIFIER_GOOD_IF);
+                    specialIdentifierAtStackPosition[tail] = _IDENTIFIER_GOOD_IF;
+                }
                 break;
             case 0x14: //SET_MARKET: a SET_MARKET: Sets a marker at position a to the current instruction.
                 a = pop();
@@ -232,6 +251,36 @@ void interpret(int numInstructions){
                 processFile(file, registers, b);
 
                 fclose(file);
+                break;
+            case 0x1e: //FUNCTION_DECLARE: a b FUNCTION_DECLARE: Creates a function with ID a, which takes the last b parameters pushed to the stack.
+                b = pop();
+                a = pop();
+                functions[a][0] = i;
+                functions[a][1] = b;
+                push(_IDENTIFIER_FUNCTION_DECLARE);
+                specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FUNCTION_DECLARE;
+                break;
+            case 0x1f: //FUNCTION_JUMP: a FUNCTION_JUMP: Jumps to a function with the id a.
+                a = pop();
+                push(i); //Push the current instruction number for use later.
+                push(_IDENTIFIER_FUNCTION);
+                specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FUNCTION;
+                i = functions[a][0];
+                /*for(b = functions[a][0]; b > 0; b --){
+                    pop(); //Pops off the last b arguments for use by the function.
+                }*/
+                break;
+            case 0x20: //RETURN: a RETURN: Pushes a to the stack after function execution ends.
+                b = specialIdentifierAtStackPosition[tail];
+                a = pop(); //Save the value which we wish to remain on the stack
+                while(!( (peek() == _IDENTIFIER_FUNCTION && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FUNCTION) ) ){
+                    if(tail == -1) break;
+                    pop(); //Until we get to a condition we want, let's keep popping values.
+                }
+                pop(); // Remove the function call from the stack
+                i = pop(); //Return to calling instruction.
+                push(a); // Push a back onto the stack
+                specialIdentifierAtStackPosition[tail] = b;
                 break;
         }
     }
