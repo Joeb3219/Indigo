@@ -40,3 +40,6 @@ Current instructions accepted:
  * 0x1b - PRINT_LONG: a PRINT_LONG: prints the last a stack objects.
  * 0x1c - LETTER: a b LETTER: Pushes a letter to the stack that is uppercase if a == 1, beginning at b (eg: b == 0 => a, b == 1 => b).
  * 0x1d - READ_FILE: a b READ_FILE: reads in instructions from file named a.txt starting at register b.
+ * 0x1e - FUNCTION_DECLARE: a b FUNCTION_DECLARE: Creates a function with ID a, which takes the last b parameters pushed to the stack.
+ * 0x1f - FUNCTION_JUMP: a FUNCTION_JUMP: Jumps to a function with the id a
+ * 0x20 - RETURN: a RETURN: Pushes a to the stack after function execution ends
