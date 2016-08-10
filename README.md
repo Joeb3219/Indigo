@@ -15,29 +15,28 @@ Langauge specifics:
 Current instructions accepted:
 
  * 0x00 - LITERAL: literal a: Pushes a to the stack
- * 0x01 - Add: a b Add
- * 0x02 - Subtract: 
- * 0x03 -
- * 0x04 -
- * 0x05 -
- * 0x06 -
- * 0x07 -
- * 0x08 -
- * 0x09 -
- * 0x0a -
- * 0x0b -
- * 0x0c -
- * 0x0d -
- * 0x0e -
- * 0x0f -
- * 0x10 -
- * 0x10 -
- * 0x10 -
- * 0x10 -
- * 0x10 -
- * 0x10 -
- * 0x10 -
- * 0x10 -
- * 0x10 -
- * 0x10 -
- 
+ * 0x01 - ADD: a b ADD: Pushes a + b to the stack.
+ * 0x02 - SUBT: a b SUBT: Pushes a - b to the stack.
+ * 0x03 - MULT: a b MULT: Pushes a * b to the stack.
+ * 0x04 - DIV:  a b DIV : pushes a / b to the stack.
+ * 0x05 - MOD: a b MOD: Pushes a % b to the stack.
+ * 0x06 - RAND: RAND: Pushes a random number to the stack
+ * 0x07 - PRINT: a PRINT: Prints a to console.
+ * 0x08 - END: END: Ends the current block.
+ * 0x09 - GET_REGISTER: a GET_REGISTER: Pushes the value of register a to the stack.
+ * 0x0a - SET_REGISTER: a b SET_REGISTER: Sets the value of register a to b.
+ * 0x0b - GET_REGISTER_COUNT: GET_REGISTER_COUNT: Pushes the number of Registers to the stack.
+ * 0x0c - OR OPERATOR: a b OR: Pushes a || b to the stack (eg: T || F => T, F || F => F).
+ * 0x0d - XOR OPERATOR: a b XOR: Pushes a X|| b to the stack (eg: T || F => T, F || F => F, T || T => F)
+ * 0x0e - AND OPERATOR: a b AND: pushes a && b to the stack (eg: T && T => T, T && F => F, F && F => F).
+ * 0x0f - NOT OPERATOR: a NOT: Pushes the inverse of a (eg: !T => F, !F => T).
+ * 0x10 - EQUALS OPERATOR: a b EQUALS: Pushes a == b (eg: if a == b, pushes 1, otherwise pushes 0).
+ * 0x11 - GREATER THAN: a b GREATER THAN: Pushes a > b
+ * 0x12 - LESS THAN: a b LESS_THAN: pushes a < b
+ * 0x13 - IF: a IF: continues in block IFF a is equal to 1.
+ * 0x14 - SET_MARKET: a SET_MARKET: Sets a marker at position a to the current instruction.
+ * 0x15 - JUMP_TO: a JUMP_TO: Jump to the instruction specified by marker[a].
+ * 0x1a - CHAR: a CHAR : specifies that the previously pushed byte is a character and should be converted to a char when printed.
+ * 0x1b - PRINT_LONG: a PRINT_LONG: prints the last a stack objects.
+ * 0x1c - LETTER: a b LETTER: Pushes a letter to the stack that is uppercase if a == 1, beginning at b (eg: b == 0 => a, b == 1 => b).
+ * 0x1d - READ_FILE: a b READ_FILE: reads in instructions from file named a.txt starting at register b.
