@@ -3,7 +3,7 @@
 #include <string.h>
 
 /**
- * INDIGO COMPILER V1.0.0
+ * INDIGO COMPILER V1.0.1
  * INDIGO IS A LANGUAGE WHICH UTILIZES HEX VALUES FOR ALL INSTUCTIONS.
  * WRITTEN BY JOSEPH BOYLE (joeb3219).
  * Indigo uses a stack to process all instructions, which can be read from a text file.
@@ -45,15 +45,15 @@ int main(int argc, char *argv[]){
 }
 
 //Processes a file, returning the total number of instructions extracted from the file.
-int processFile(FILE* file, int* theseInstructions, int start){
-    char line[512];
-    char processedLine[256];
-    char substring[5];
-    int val = 0, i = 0, j = 0, k = start;
+int processFile(FILE* file, int* theseInstructions, int startRegister){
+    char line[4096];
+    char processedLine[4096];
+    char substring[11]; //Allows for an instruction with a maximum value of 0xffffffff plus an \0 character.
+    int val = 0, i = 0, j = 0, start = 0, k = startRegister;
 
     while (fgets(line, sizeof(line), file)) {
         j = 0;
-        for(i = 0; i < sizeof(line); i ++){
+        for(i = 0; i < sizeof(line); i ++){ //Copy over non-space, non EOL characters to be processed.
             if(line[i] == '/' || line[i] == '\n'){
                 i = sizeof(line);
                 continue;
@@ -63,14 +63,19 @@ int processFile(FILE* file, int* theseInstructions, int start){
             }
         }
 
-        for(i = 0; i < strlen(processedLine); i += 4){
-            memcpy(substring, &processedLine[i], 4 );
-            substring[4] = '\0';
-            val = (int) strtol(substring, NULL, 0);
-            theseInstructions[k] = val;
+        start = 0;
+        //To allow for instructions of up to 0xffffffff, we scan for occurrences of 0x and slice the string accordingly.
+        //We begin at i=2 so as to skip the first 0x occurrence, and continue until one past the end of the string so we can calculate the ending bounds correctly.
+        for(i = 2; i <= strlen(processedLine) + 1; i ++){
+            if(i != (strlen(processedLine) + 1) && processedLine[i] != 'x') continue;
+            memcpy(substring, &processedLine[start], (i - 1) - start); //Copy over single instruction to a substring
+            substring[(i - 1) - start] = '\0';
+            val = (int) strtol(substring, NULL, 0); //Convert substring to an decimal integer value
+            theseInstructions[k] = val; //Add instruction to the list
             k ++;
+            start = i - 1;
         }
-        memset(processedLine, 0, sizeof(processedLine));
+        memset(processedLine, 0, sizeof(processedLine)); //Clear out the line so we don't reread larger instructions in the next cycle.
     }
     return k;
 }
@@ -78,6 +83,7 @@ int processFile(FILE* file, int* theseInstructions, int start){
 void interpret(int numInstructions){
     int i, a, b = 0;
     for(i = 0; i < numInstructions; i ++){
+        //If the current item on the stack is in fact an if statement which we aren't entering, only consider other IF/END statements
         if(peek() == _IDENTIFIER_FAILED_IF && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FAILED_IF){
             if(instructions[i] == 0x13){
                 push(_IDENTIFIER_FAILED_IF);
@@ -86,7 +92,7 @@ void interpret(int numInstructions){
             continue;
         }
         switch(instructions[i]){
-        case 0x00: //LITERAL: literal a: Pushes a to the stack
+            case 0x00: //LITERAL: literal a: Pushes a to the stack
                 i ++;
                 push(instructions[i]);
                 break;
