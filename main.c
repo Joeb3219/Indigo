@@ -47,8 +47,8 @@ int main(int argc, char *argv[]){
 
 //Processes a file, returning the total number of instructions extracted from the file.
 int processFile(FILE* file, int* theseInstructions, int startRegister){
-    char line[4096];
-    char processedLine[4096];
+    char line[4096] = {0};
+    char processedLine[4096] = {0};
     char substring[11]; //Allows for an instruction with a maximum value of 0xffffffff plus an \0 character.
     int val = 0, i = 0, j = 0, start = 0, k = startRegister;
 
