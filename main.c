@@ -14,12 +14,12 @@
  *
 **/
 
-static int instructions[1024 * 4] = {-1}; //A list of instructions to process in the application.
+static int instructions[1024 * 8] = {-1}; //A list of instructions to process in the application.
 static int stack[1024 * 2] = {-1}; //The stack which is used to push values to other segments of code.
+static int specialIdentifierAtStackPosition[1024 * 2] = {0};
 static int tail = -1; //This is the last used position on the stack (eg, after one insert, tail will be set to 0).
 static int registers[1024 * 8] = {-1}; //The registers which data may be set/retrieved to/from during program execution. IE: Memory.
 static int markers[1024 * 8] = {-1}; //Used to tell us what kind of data a value in a register actually represents (eg: setting
-static int specialIdentifierAtStackPosition[1024];
 static int functions[128][2] = {-1}; //A list of functions stored by the program. functions[][0] contains the instruction number, and [][1] contains the number of args.
 
 const int _IDENTIFIER_FUNCTION_DECLARE = -132; //A flag used to identify a function declaration, which we ignore for now.
@@ -34,9 +34,7 @@ int main(int argc, char *argv[]){
 
     printf("Hello world! I am a Virtual Machine!\n");
 
-    if(argc < 2) error("Insufficient number of arguments; expecting filename.");
-
-    file = fopen(argv[1], "r");
+    file = fopen("compiler.txt", "r");
 
     k = processFile(file, instructions, 0);
 
@@ -144,6 +142,7 @@ void interpret(int numInstructions){
                 }
                 if(peek() == _IDENTIFIER_FUNCTION && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FUNCTION){
                     pop();
+                    registers[4] -= functions[pop()][1]; // Decrement the function argument offset register by the number of arguments this function took.
                     i = pop(); //Return to calling instruction.
                 }else pop();
                 break;
@@ -262,13 +261,16 @@ void interpret(int numInstructions){
                 break;
             case 0x1f: //FUNCTION_JUMP: a FUNCTION_JUMP: Jumps to a function with the id a.
                 a = pop();
+                // Push arguments onto the registers
+                for(b = functions[a][1]; b > 0; b --){
+                    registers[ b + registers[4] + registers[3]] = pop(); //Pops off the last b arguments for use by the function, storing them in appropriate registers.
+                }
                 push(i); //Push the current instruction number for use later.
+                push(a); //Push the function's id for reference when popping.
                 push(_IDENTIFIER_FUNCTION);
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FUNCTION;
                 i = functions[a][0];
-                /*for(b = functions[a][0]; b > 0; b --){
-                    pop(); //Pops off the last b arguments for use by the function.
-                }*/
+                registers[4] += functions[a][1]; //Increase the offset for functions, stored in register 4.
                 break;
             case 0x20: //RETURN: a RETURN: Pushes a to the stack after function execution ends.
                 b = specialIdentifierAtStackPosition[tail];
@@ -278,6 +280,7 @@ void interpret(int numInstructions){
                     pop(); //Until we get to a condition we want, let's keep popping values.
                 }
                 pop(); // Remove the function call from the stack
+                registers[4] -= functions[pop()][1]; // Decrement the function argument offset register by the number of arguments this function took.
                 i = pop(); //Return to calling instruction.
                 push(a); // Push a back onto the stack
                 specialIdentifierAtStackPosition[tail] = b;
