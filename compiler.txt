@@ -7,9 +7,13 @@
 0x0 0x0 0x0 0x1 0x09 0xa // Register 0 contains the next available register for public use, which happens to be the value of register 1.
 0x0 0x3 0x0 0x200 0xa // Register 3 contains the beginning register for where function arguments get stored
 0x0 0x4 0x0 0x0 0xa // Register 4 contains the number of argument registers already in use.
+
+// Type variables
+// Arrays follow the following format in memory: ARRAY_SYMBOL ARRAY_TYPE_SYMBOL DATA_1 DATA_2 ... DATA_N, where ARRAY_TYPE_SYMBOL is an INTEGER_SYMBOL, CHAR_SYMBOL, etc.
 0x0 0x10 0x0 0x0 0x0 0x7fffffff 0x02 0x0a // Register 16 contains the symbol indicating that the next memory blocks are an array.
-0x0 0x11 0x0 0x0 0x0 0x6fffffff 0x02 0x0a // Register 17 contains the symbol indicating that the next memory block are an integer.
-0x0 0x12 0x0 0x0 0x0 0x5fffffff 0x02 0x0a // Register 18 contains the symbol indicating that the next memory block is a character.
+0x0 0x11 0x0 0x0 0x0 0x7ffffffe 0x02 0x0a // Register 17 contains the symbol indicating that the next memory block are an integer.
+0x0 0x12 0x0 0x0 0x0 0x7ffffffd 0x02 0x0a // Register 18 contains the symbol indicating that the next memory block is a character.
+0x0 0x13 0x0 0x0 0x0 0x7ffffffc 0x02 0x0a // Register 19 contains the symbol indicating the end of an array.
 
 //Some functions used in the program
 
@@ -32,57 +36,57 @@
 
 // FUNCTION 1: PRINTS TEST: (val of reg[1])
 0x0 0x1 0x0 0x0 0x1e // Declares a function, 1, which takes no arguments and prints Test: (valOfReg[1])
-0x0 0x1 0x09 // Get the value of register 1
-0x00 0x20 0x1a // Loads the character space
-0x00 0x3a 0x1a // Loads the character :
-0x00 0x00 0x00 0x13 0x1c // Loads the letter t
-0x00 0x00 0x00 0x12 0x1c // Loads the letter s
-0x00 0x00 0x00 0x04 0x1c // Loads the letter e
-0x00 0x01 0x00 0x13 0x1c // Loads the letter T
-0x00 0x07 0x1b // Print the last 7 things
+    0x0 0x1 0x09 // Get the value of register 1
+    0x00 0x20 0x1a // Loads the character space
+    0x00 0x3a 0x1a // Loads the character :
+    0x00 0x00 0x00 0x13 0x1c // Loads the letter t
+    0x00 0x00 0x00 0x12 0x1c // Loads the letter s
+    0x00 0x00 0x00 0x04 0x1c // Loads the letter e
+    0x00 0x01 0x00 0x13 0x1c // Loads the letter T
+    0x00 0x07 0x1b // Print the last 7 things
 0x8 // End function
 
 // FUNCTION 2: INCREMENTS VALUE OF "CURRENT REGISTER" REGISTER
 0x0 0x2 0x0 0x0 0x1e // Declares a function, 2, which takes no arguments and increments the register indicating which register should be used next.
-0x0 0x0 // Literal 0
-0x0 0x0 0x9 // Load register 0
-0x0 0x1 // Literal 1
-0x1 // Add 1 to register 0s value
-0x0a // Store value in registers
+    0x0 0x0 // Literal 0
+    0x0 0x0 0x9 // Load register 0
+    0x0 0x1 // Literal 1
+    0x1 // Add 1 to register 0s value
+    0x0a // Store value in registers
 0x8 // End function
 
 // FUNCTION 3: GETS THE "CURRENT REGISTER" FOR PROGRAMS TO ACCESS
 0x0 0x3 0x0 0x0 0x1e // Declares a function, 3, which takes no arguments and pushes the register value of the current register.
-0x0 0x0 0x9 // Read register 0
-0x20 // Return the value of register 0
+    0x0 0x0 0x9 // Read register 0
+    0x20 // Return the value of register 0
 0x8 // End function
 
 // Function 4: RETURNS THE "CURRENT REGISTER" AND THEN UPDATES IT
 0x0 0x4 0x0 0x0 0x1e // Declares a function, 4, which takes no arguments and pushes the register value of the current register and then updates it.
-0x0 0x2 0x1f // Update the value of the CURRENT REGISTER
-0x0 0x3 0x1f // Get the value of the CURRENT REGISTER
-0x0 0x1 // Literal 1
-0x2 // Subtract
-0x20 // Return the value of register 0
+    0x0 0x2 0x1f // Update the value of the CURRENT REGISTER
+    0x0 0x3 0x1f // Get the value of the CURRENT REGISTER
+    0x0 0x1 // Literal 1
+    0x2 // Subtract
+    0x20 // Return the value of register 0
 0x8 // End function
 
 // Function 5: RETURNS THE "CURRENT" ARGUMENT FUNCTIONS REGISTER
 0x0 0x5 0x0 0x0 0x1e // Declares a function, 5, which takes no arguments and returns register 3 + register 4.
-0x0 0x3 0x9 // Loads register 3
-0x0 0x4 0x9 // Loads register 4
-0x1 // Adds together
-0x20 // Return the value of register 3 + register 4;
+    0x0 0x3 0x9 // Loads register 3
+    0x0 0x4 0x9 // Loads register 4
+    0x1 // Adds together
+    0x20 // Return the value of register 3 + register 4;
 0x8 // End function
 
 // Function 6: RETURNS THE CURRENT ARGUMENT REGISTER, OFFSET BY A SPECIFIED VALUE (used by functions to find the beginning of their argument stack).
 0x0 0x6 0x0 0x1 0x1e // Declares a function, 6, which takes one argument, the number of arguments accepted by the function, and returns function 5 minus that quantity.
-0x0 0x5 0x1f // Load the "CURRENT ARGUMENT" value
-// We move back one register so we can read our argument input
-0x0 0x5 0x1f // Load the "CURRENT ARGUMENT" value
-0x9 // Read the value -- this is the argument passed by the function
-0x2 // Subtract from the first retrieved value
-0x0 0x1 0x2 // Subtract 1
-0x20 // Return ("current argument" - passed argument) - 1.
+    0x0 0x5 0x1f // Load the "CURRENT ARGUMENT" value
+    // We move back one register so we can read our argument input
+    0x0 0x5 0x1f // Load the "CURRENT ARGUMENT" value
+    0x9 // Read the value -- this is the argument passed by the function
+    0x2 // Subtract from the first retrieved value
+    0x0 0x1 0x2 // Subtract 1
+    0x20 // Return ("current argument" - passed argument) - 1.
 0x8 // End function
 
 // Function 7: FREES UP A REGISTER AT AN INDICATED ADDRESS
@@ -93,23 +97,87 @@
 
 // FUNCTION 8: TAKES AN OBJECT TYPE AND A VALUE AND RETURNS THE POINTER TO THE MEMORY ADDRESS
 0x0 0x8 0x0 0x2 0x1e // Declares a function, 8, which takes two arguments and returns a pointer to the created object.
-0x0 0x4 0x1f // Grabs the current register we can write to + increments it
-0x0 0x1 0x0 0x6 0x1f // Grabs the first parameter
-0x9 0x9 0xa // Reads the value of the register and then pushes it to the memory address
-0x0 0x3 0x1f // Grabs the current register we can write to
-0x0 0x0 0x0 0x6 0x1f // Grabs the second parameter
-0x9 0xa // Reads the value of the register and then pushes it to the memory address
-0x0 0x3 0x1f 0x0 0x1 0x2 // Subtract one from the register value so we are back at where the pointer should point.
-0x20 // Return
+    0x0 0x4 0x1f // Grabs the current register we can write to + increments it
+    0x0 0x1 0x0 0x6 0x1f // Grabs the first parameter
+    0x9 0x9 0xa // Reads the value of the register and then pushes it to the memory address
+    0x0 0x4 0x1f // Grabs the current register we can write to + increments it
+    0x0 0x0 0x0 0x6 0x1f // Grabs the second parameter
+    0x9 0xa // Reads the value of the register and then pushes it to the memory address
+    0x0 0x3 0x1f 0x0 0x2 0x2 // Subtract two from the register value so we are back at where the pointer should point.
+    0x20 // Return
 0x8 // End function
 
 // Function 9: PRINTS THE RAW VALUE STORED AT THE REGISTER INDICATED BY THE FIRST ARGUMENT (INTEGER REPRESENTATION)
 0x0 0x9 0x0 0x1 0x1e // Declares a function, 9, which takes one argument and prints it.
-0x0 0x0 0x0 0x6 0x1f // Get the first parameter
-0x9 // Load the value that this is pointing to.
-0x0 0x1 0x1 // Move past the type declaration to the actual data.
-0x9 // Get the value of this cell
-0x7 // Print
+    0x0 0x0 0x0 0x6 0x1f // Get the first parameter
+    0x9 // Load the value that this is pointing to.
+    0x0 0x1 0x1 // Move past the type declaration to the actual data.
+    0x9 // Get the value of this cell
+    0x7 // Print
+0x8 // End function
+
+// Function 10: PRINTS AN ARRAY
+// TAKES ONE ARGUMENT: 1) A POINTER TO THE BEGINNING OF THE ARRAY
+// Printing is done by iterating over every memory address and then reading, which pushes them to the stack, followed by calling PRINT_LONG.
+0x0 0xa 0x0 0x1 0x1e // Declares a function, 10, which takes one argument and prints the array at that address.
+    0x0 0x3 0x1f // Load current register id
+    0x0 0x0 0x0 0xb 0x1f // Get parameter one's value
+    0x21 // Duplicate
+    0x0 0xc 0x1f // Get array length
+    0x0 0x1 0x1 // Add one to array length to compensate for metadata.
+    0x1 // Add this length to the beginning index.
+    0xa // Store this value in the current register
+    0x0 0xa 0x14 // Set a marker, 10
+        0x0 0x3 0x1f 0x9 0x9 // Load value of current register, pushes the array's contents to the stack at this position
+        0x0 0x3 0x1f // Load the id of the current register
+        0x0 0x3 0x1f 0x9 // Load the value of the current register
+        0x0 0x1 0x2 0xa // Subtract one and store in register
+        0x0 0x3 0x1f 0x9 // Load the value of the current register (which is now one less than before)
+        0x0 0x0 0x0 0xb 0x1f // Get parameter one's value
+        0x0 0x1 0x1 // Add one (to bring us to the type declaration of the array)
+        0x10 // Assert equality
+        0x13 // Check if previous statement is true
+            0x0 0x0 0x0 0xb 0x1f // Get parameter one's value
+            0x0 0xc 0x1f // Get array length
+            0x23 // Print out the last ARRAY_LENGTH chars
+            0x22 // VOID_RETURN
+        0x8
+    0x0 0xa 0x15 // Jump to 10
+0x8 //End function
+
+
+// Function 11: LOADS THE VALUE SPECIFIED BY FUNCTION 6; IE: RETURNS THE VALUE OF A SPECIFIED ARGUMENT
+// GET VALUE OF ARGUMENT a.
+// DOES TWO CALCULATIONS TO SHIFT REGISTERS SO IT CAN READ AS IF IT WERE THE PROGRAM, AND THEN RETURNS THE VALUE, NOT POINTER, OF THE ARGUMENT, SAVING A READ CALL IN CALLER FUNCTION.
+// TAKES ONE ARGUMENT: ARGUMENT NUMBER (0 index).
+0x0 0x0b 0x0 0x1 0x1e // Declares a function, 11, which takes one argument and returns the value of the memory address returned by function 6.
+    0x0 0x0 0x0 0x6 0x1f // Get the first parameter's memory address
+    0x0 0x0 0x0 0x6 0x1f // Get the first parameter
+    0x9 // Load first parameter
+    0x0 0x1 0x1 // Add one so we can shift left an additional step -- we should now be where the function would call function 6 itself
+    0x2 // Subtract to bring us to the correct pointer
+    0x9 // Load the value
+    0x20 // Return
+0x8 // End function
+
+// FUNCTION 12: GET ARRAY LENGTH
+// TAKES ONE ARGUMENT, AN ARRAY, AND RETURNS ITS LENGTH
+0x0 0x0c 0x0 0x1 0x1e // Declares a function, 12, which takes an array as an argument and returns its length
+    0x0 0x0 0x0 0xb 0x1f // Get the pointer to the beginning of the array
+    0x0 0x2 0x1 // Add two so we are at the beginning of the data
+    0x0 0xc 0x14 // Set a marker, 12.
+        0x21 // Duplicate the current register we're evaluating on the stack
+        0x9 // Read data in the current register (array content)
+        0x0 0x13 0x9 // Load end of array symbol
+        0x10 // Check the data in the array is the end of array symbol.
+        0x13 // Check if we are at the end of the array
+            0x0 0x0 0x0 0xb 0x1f // Get the pointer to the beginning of the array
+            0x0 0x2 0x1 // Add two so that we get (final - (original + 2)) to offset the two spaces we skipped.
+            0x2 // Subtract
+            0x20 // Return this value.
+        0x8 // End if statement
+        0x0 0x1 0x1 // Add one to the register
+    0x0 0xc 0x15 // Jump back to mark 12.
 0x8 // End function
 
 // Program execution
@@ -124,6 +192,14 @@
 
 // Store something at a memory address, then pass a pointer to a function
 0x0 0x11 // Literal 17 : INTEGER
-0x0 0xffff // Literal 255
+0x0 0xff // Literal 255
 0x0 0x8 0x1f // Store this into memory
 0x0 0x9 0x1f // Call the print function
+
+// Load a text document into memory
+0x0 0x3 0x1f // Get the "CURRENT REGISTER" // Will be used for later reference.
+0x0 0x80 // Literal 128
+0x0 0x3 0x1f // Get the "CURRENT REGISTER"
+0x1d // Load file into memory
+//0x0 0x0c 0x1f 0x7 // Get the length of the array
+0x0 0x0a 0x1f // Print the entire array of characters.
