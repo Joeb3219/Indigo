@@ -1,1 +1,2 @@
-Hello world! ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwyz123456780 ~!@#$%^&*()_+`\][|}{';":?/>.<,"'}]
+LET var = 5.
+LET varX = 7.

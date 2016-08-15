@@ -3,7 +3,7 @@
 #include <string.h>
 
 /**
- * INDIGO COMPILER V1.0.5
+ * INDIGO COMPILER V1.0.6
  * INDIGO IS A LANGUAGE WHICH UTILIZES HEX VALUES FOR ALL INSTUCTIONS.
  * WRITTEN BY JOSEPH BOYLE (joeb3219).
  * Indigo uses a stack to process all instructions, which can be read from a text file.
@@ -59,8 +59,7 @@ int processFile(FILE* file, int* theseInstructions, int startRegister){
                 i = sizeof(line);
                 continue;
             } else if(line[i] != ' '){
-                processedLine[j] = line[i];
-                j ++;
+                processedLine[j++] = line[i];
             }
         }
 
@@ -72,8 +71,7 @@ int processFile(FILE* file, int* theseInstructions, int startRegister){
             memcpy(substring, &processedLine[start], (i - 1) - start); //Copy over single instruction to a substring
             substring[(i - 1) - start] = '\0';
             val = (int) strtol(substring, NULL, 0); //Convert substring to an decimal integer value
-            theseInstructions[k] = val; //Add instruction to the list
-            k ++;
+            theseInstructions[k++] = val; //Add instruction to the list
             start = i - 1;
         }
         memset(processedLine, 0, sizeof(processedLine)); //Clear out the line so we don't reread larger instructions in the next cycle.
@@ -86,25 +84,23 @@ void readFileIntoMemory(char* fileName, int startRegister){
     char line[2048] = {0};
     int i = 0, j = startRegister;
 
-    storeInRegister(j, registers[16]); //Push the ARRAY_SYMBOL to memory.
-    storeInRegister(j + 1, registers[18]); //Indicate that this is a character array via CHAR_SYMBOL.
+    storeInRegister(j, readFromRegister(16)); //Push the ARRAY_SYMBOL to memory.
+    storeInRegister(j + 1, readFromRegister(18)); //Indicate that this is a character array via CHAR_SYMBOL.
     j += 2;
 
     file = fopen(fileName, "r");
 
     while (fgets(line, sizeof(line), file)) {
         for(i = 0; i < sizeof(line); i ++){ //Copy over non-space, non EOL characters to be processed.
+            storeInRegister(j++, line[i]);
             if(line[i] == '\n'){
                 i = sizeof(line);
                 continue;
             }
-            storeInRegister(j, line[i]);
-            j ++;
         }
     }
 
-    storeInRegister(j, registers[19]); //Indicate that the array is finished
-    j ++;
+    storeInRegister(j++, readFromRegister(19)); //Indicate that the array is finished
 
     storeInRegister(0, j);
 
@@ -114,6 +110,7 @@ void readFileIntoMemory(char* fileName, int startRegister){
 void interpret(int numInstructions){
     int i, a, b = 0;
     for(i = 0; i < numInstructions; i ++){
+        if(readFromRegister(3) == -129) return;
         //If the current item on the stack is in fact an if statement which we aren't entering, only consider other IF/END statements
         if(peek() == _IDENTIFIER_FAILED_IF && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FAILED_IF){
             if(instructions[i] == 0x00){ // Setting up for a literal, disregard it.
@@ -176,17 +173,18 @@ void interpret(int numInstructions){
                 else printf("%d\n", pop());
                 break;
             case 0x08: //END: END: Ends the current block.
+                //printStack();
                 b = getPosOfRecentStateChange(); // Find the closest conditional/state changing item in the stack.
                 if(b == -1) error("End cannot be matched to an opening call.");
                 if(stack[b] == _IDENTIFIER_FUNCTION){
                     popTarget(b, 1);
-                    registers[4] -= functions[pop()][1]; // Decrement the function argument offset register by the number of arguments this function took.
+                    storeInRegister(4, readFromRegister(4) - functions[pop()][1]); // Decrement the function argument offset register by the number of arguments this function took.
                     i = pop(); //Return to calling instruction.
                 }else popTarget(b, 0);
                 break;
             case 0x09: //GET_REGISTER: a GET_REGISTER: Pushes the value of register a to the stack.
                 a = pop();
-                push(registers[a]);
+                push(readFromRegister(a));
                 break;
             case 0x0a: //SET_REGISTER: a b SET_REGISTER: Sets the value of register a to b.
                 b = pop();
@@ -238,7 +236,7 @@ void interpret(int numInstructions){
                 else push(0);
                 break;
             case 0x13: //IF: a IF: continues in block IFF a is equal to 1.
-                a = pop();
+                a = pop(); // Value to test
                 // If we are pushing a failed if to the stack, it is okay to push it to the end since no instructions are evaluated.
                 // Therefore, we elect to save some computations by always leaving failed calls at the end of the stack for quicker evaluations.
                 if(a == 0){
@@ -249,8 +247,8 @@ void interpret(int numInstructions){
                     //If there are no function calls on the stack, we push as far to the left as possible.
                     //By doing so, IF statements get access to all of the state (global or local, depending on if there is a function call already in the stack).
                     b = getPosOfRecentStateChange(); // Pull the most recent state change.
-                    if(b == -1) b ++;
-                    registers[b] = _IDENTIFIER_GOOD_IF;
+                    b ++;
+                    pushInPlace(b, _IDENTIFIER_GOOD_IF);
                     specialIdentifierAtStackPosition[b] = _IDENTIFIER_GOOD_IF;
                 }
                 break;
@@ -299,17 +297,17 @@ void interpret(int numInstructions){
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FUNCTION_DECLARE;
                 break;
             case 0x1f: //FUNCTION_JUMP: a FUNCTION_JUMP: Jumps to a function with the id a.
-                a = pop();
+                a = pop(); // Pop the ID of the function we're jumping to.
                 // Push arguments onto the registers
-                for(b = functions[a][1]; b > 0; b --){
-                    storeInRegister(b + registers[4] + registers[3], pop()); //Pops off the last b arguments for use by the function, storing them in appropriate registers.
+                for(b = 1; b <= functions[a][1]; b ++){
+                    storeInRegister(b + readFromRegister(4) + readFromRegister(3), pop()); //Pops off the last b arguments for use by the function, storing them in appropriate registers.
                 }
                 push(i); //Push the current instruction number for use later.
                 push(a); //Push the function's id for reference when popping.
                 push(_IDENTIFIER_FUNCTION);
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FUNCTION;
                 i = functions[a][0];
-                registers[4] += functions[a][1]; //Increase the offset for functions, stored in register 4.
+                storeInRegister(4, readFromRegister(4) + functions[a][1]); //Increase the offset for functions, stored in register 4.
                 break;
             case 0x20: //RETURN: a RETURN: Pushes a to the stack after function execution ends.
                 b = specialIdentifierAtStackPosition[tail];
@@ -319,7 +317,7 @@ void interpret(int numInstructions){
                     pop(); //Until we get to a condition we want, let's keep popping values.
                 }
                 pop(); // Remove the function call from the stack
-                registers[4] -= functions[pop()][1]; // Decrement the function argument offset register by the number of arguments this function took.
+                storeInRegister(4, readFromRegister(4) - functions[pop()][1]); // Decrement the function argument offset register by the number of arguments this function took.
                 i = pop(); //Return to calling instruction.
                 push(a); // Push a back onto the stack
                 specialIdentifierAtStackPosition[tail] = b;
@@ -335,9 +333,8 @@ void interpret(int numInstructions){
                     pop(); //Until we get to a condition we want, let's keep popping values.
                 }
                 pop(); // Remove the function call from the stack
-                registers[4] -= functions[pop()][1]; // Decrement the function argument offset register by the number of arguments this function took.
+                storeInRegister(4, readFromRegister(4) - functions[pop()][1]); // Decrement the function argument offset register by the number of arguments this function took.
                 i = pop(); //Return to calling instruction.
-                push(a); // Push a back onto the stack
                 specialIdentifierAtStackPosition[tail] = b;
                 break;
             case 0x23: //PRINT_LONG_CHARS: a PRINT_LONG_CHARS: Prints the last a stack objects as characters
@@ -352,12 +349,22 @@ void interpret(int numInstructions){
             case 0x24: //PRINT_STACK: PRINT_STACK: Prints the stack
                 printStack();
                 break;
+            case 0x25: //PRINT_MEMORY: PRINT_MEMORY: Prints the memory
+                printMemory();
+                break;
         }
     }
 }
 
+int readFromRegister(int reg){
+    if(reg >= (sizeof(registers) / sizeof(registers[0]))) error("Register read error: Index greater than maximum register");
+    if(reg < 0) error("Register read error: Negative index");
+    return registers[reg];
+}
+
 void storeInRegister(int reg, int val){
-    if(reg < 0) error("Attempting to store a value into a negative register.");
+    if(reg >= (sizeof(registers) / sizeof(registers[0]))) error("Register write error: Index greater than maximum register");
+    if(reg < 0) error("Register write error: Negative index");
     registers[reg] = val;
 }
 
@@ -365,9 +372,9 @@ int getPosOfRecentStateChange(){
     int i = 0;
     for(i = tail; i > -1; i --){
         if( (stack[i] == _IDENTIFIER_FUNCTION && specialIdentifierAtStackPosition[i] == _IDENTIFIER_FUNCTION)
-            || (stack[i] == _IDENTIFIER_FAILED_IF && specialIdentifierAtStackPosition[i] == _IDENTIFIER_FAILED_IF)
             || (stack[i] == _IDENTIFIER_GOOD_IF && specialIdentifierAtStackPosition[i] == _IDENTIFIER_GOOD_IF) ){
-            } return i;
+                return i;
+            }
     }
     return -1;
 }
@@ -392,6 +399,7 @@ void popTarget(int target, int deleteRemainder){
     }else{
         for(b; b < tail; b ++){
             stack[b] = stack[b + 1];
+            specialIdentifierAtStackPosition[b] = specialIdentifierAtStackPosition[b + 1];
         }
         tail --;
     }
@@ -411,10 +419,11 @@ int pop(){
     return val;
 }
 
-void pushInPlace(int val, int pos){
+void pushInPlace(int pos, int val){
     int b = tail;
     for(b; b >= pos; b -- ){
         stack[b + 1] = stack[b];
+        specialIdentifierAtStackPosition[b + 1] = specialIdentifierAtStackPosition[b];
     }
     stack[pos] = val;
     tail ++;
@@ -430,6 +439,16 @@ void push(int val){
 void error(char* message){
     printf("[COMPILER] ERROR: %s\n", message);
     exit(1);
+}
+
+void printMemory(){
+    int i = 0;
+    printf("MEMORY DUMP");
+    for(i; i < (sizeof(registers) / sizeof(registers[0])); i ++){
+        if(i % 8 == 0) printf("\n%5d: ", i);
+        printf("[%08x]", registers[i]);
+    }
+    printf("\nEND MEMORY DUMP\n");
 }
 
 void printStack(){
