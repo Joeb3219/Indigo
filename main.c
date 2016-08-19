@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <limits.h>
 
 /**
  * INDIGO COMPILER V1.0.6
@@ -16,11 +17,11 @@
 
 static int instructions[1024 * 8] = {-1}; //A list of instructions to process in the application.
 static int stack[1024 * 2] = {-1}; //The stack which is used to push values to other segments of code.
-static int specialIdentifierAtStackPosition[1024 * 2] = {0};
+static int specialIdentifierAtStackPosition[1024 * 2] = {};
 static int tail = -1; //This is the last used position on the stack (eg, after one insert, tail will be set to 0).
-static int registers[1024 * 8] = {-1}; //The registers which data may be set/retrieved to/from during program execution. IE: Memory.
-static int markers[1024 * 8] = {-1}; //Used to tell us what kind of data a value in a register actually represents (eg: setting
-static int functions[128][2] = {-1}; //A list of functions stored by the program. functions[][0] contains the instruction number, and [][1] contains the number of args.
+static int registers[1024 * 8] = {}; //The registers which data may be set/retrieved to/from during program execution. IE: Memory.
+static int markers[1024 * 8] = {}; //Used to tell us what kind of data a value in a register actually represents (eg: setting
+static int functions[128][2] = {}; //A list of functions stored by the program. functions[][0] contains the instruction number, and [][1] contains the number of args.
 
 const int _IDENTIFIER_FUNCTION_DECLARE = -132; //A flag used to identify a function declaration, which we ignore for now.
 const int _IDENTIFIER_FUNCTION = -131; //A flag that to identify when we were in a function call.
@@ -31,6 +32,8 @@ const int _IDENTIFIER_CHAR = -128; //A flag used to identify that the register r
 int main(int argc, char *argv[]){
     FILE *file;
     int k = 0;
+
+    for(k = 0; k < sizeof(registers) / sizeof(registers[0]); k ++) registers[k] = INT_MIN + 1;
 
     printf("Hello world! I am a Virtual Machine!\n");
 
@@ -173,7 +176,6 @@ void interpret(int numInstructions){
                 else printf("%d\n", pop());
                 break;
             case 0x08: //END: END: Ends the current block.
-                //printStack();
                 b = getPosOfRecentStateChange(); // Find the closest conditional/state changing item in the stack.
                 if(b == -1) error("End cannot be matched to an opening call.");
                 if(stack[b] == _IDENTIFIER_FUNCTION){
@@ -397,7 +399,7 @@ void popTarget(int target, int deleteRemainder){
             pop();
         }
     }else{
-        for(b; b < tail; b ++){
+        for(b = target; b < tail; b ++){
             stack[b] = stack[b + 1];
             specialIdentifierAtStackPosition[b] = specialIdentifierAtStackPosition[b + 1];
         }
