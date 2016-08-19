@@ -22,6 +22,8 @@ static int tail = -1; //This is the last used position on the stack (eg, after o
 static int registers[1024 * 8] = {}; //The registers which data may be set/retrieved to/from during program execution. IE: Memory.
 static int markers[1024 * 8] = {}; //Used to tell us what kind of data a value in a register actually represents (eg: setting
 static int functions[128][2] = {}; //A list of functions stored by the program. functions[][0] contains the instruction number, and [][1] contains the number of args.
+static int lineNumbers[sizeof(instructions) / sizeof(instructions[0])] = {};
+static int currentInstruction = 0;
 
 const int _IDENTIFIER_FUNCTION_DECLARE = -132; //A flag used to identify a function declaration, which we ignore for now.
 const int _IDENTIFIER_FUNCTION = -131; //A flag that to identify when we were in a function call.
@@ -53,9 +55,10 @@ int processFile(FILE* file, int* theseInstructions, int startRegister){
     char line[4096] = {0};
     char processedLine[4096] = {0};
     char substring[11]; //Allows for an instruction with a maximum value of 0xffffffff plus an \0 character.
-    int val = 0, i = 0, j = 0, start = 0, k = startRegister;
+    int val = 0, i = 0, j = 0, start = 0, k = startRegister, lineNum = 0;
 
     while (fgets(line, sizeof(line), file)) {
+        lineNum ++;
         j = 0;
         for(i = 0; i < sizeof(line); i ++){ //Copy over non-space, non EOL characters to be processed.
             if(line[i] == '/' || line[i] == '\n'){
@@ -74,6 +77,7 @@ int processFile(FILE* file, int* theseInstructions, int startRegister){
             memcpy(substring, &processedLine[start], (i - 1) - start); //Copy over single instruction to a substring
             substring[(i - 1) - start] = '\0';
             val = (int) strtol(substring, NULL, 0); //Convert substring to an decimal integer value
+            lineNumbers[k] = lineNum; //Add line numbers
             theseInstructions[k++] = val; //Add instruction to the list
             start = i - 1;
         }
@@ -111,36 +115,36 @@ void readFileIntoMemory(char* fileName, int startRegister){
 }
 
 void interpret(int numInstructions){
-    int i, a, b = 0;
-    for(i = 0; i < numInstructions; i ++){
+    int a, b = 0;
+    for(currentInstruction = 0; currentInstruction < numInstructions; currentInstruction ++){
         if(readFromRegister(3) == -129) return;
         //If the current item on the stack is in fact an if statement which we aren't entering, only consider other IF/END statements
         if(peek() == _IDENTIFIER_FAILED_IF && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FAILED_IF){
-            if(instructions[i] == 0x00){ // Setting up for a literal, disregard it.
-                i ++;
+            if(instructions[currentInstruction] == 0x00){ // Setting up for a literal, disregard it.
+                currentInstruction ++;
                 continue;
             }
-            if(instructions[i] == 0x13){
+            if(instructions[currentInstruction] == 0x13){
                 push(_IDENTIFIER_FAILED_IF);
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FAILED_IF;
-            }else if(instructions[i] == 0x08) pop(); //Pops off the IF call.
+            }else if(instructions[currentInstruction] == 0x08) pop(); //Pops off the IF call.
             continue;
         }else if(peek() == _IDENTIFIER_FUNCTION_DECLARE && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FUNCTION_DECLARE){
-            if(instructions[i] == 0x00){ // Setting up for a literal, disregard it.
-                i ++;
+            if(instructions[currentInstruction] == 0x00){ // Setting up for a literal, disregard it.
+                currentInstruction ++;
                 continue;
             }
-            if(instructions[i] == 0x13){
+            if(instructions[currentInstruction] == 0x13){
                 push(_IDENTIFIER_FAILED_IF);
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FAILED_IF;
             }
-            if(instructions[i] == 0x08) pop(); //Pops off the FUNCTION_DECLARE call.
+            if(instructions[currentInstruction] == 0x08) pop(); //Pops off the FUNCTION_DECLARE call.
             continue;
         }
-        switch(instructions[i]){
+        switch(instructions[currentInstruction]){
             case 0x00: //LITERAL: literal a: Pushes a to the stack
-                i ++;
-                push(instructions[i]);
+                currentInstruction ++;
+                push(instructions[currentInstruction]);
                 break;
             case 0x01: //ADD: a b ADD: Pushes a + b to the stack.
                 b = pop();
@@ -180,8 +184,8 @@ void interpret(int numInstructions){
                 if(b == -1) error("End cannot be matched to an opening call.");
                 if(stack[b] == _IDENTIFIER_FUNCTION){
                     popTarget(b, 1);
-                    storeInRegister(4, readFromRegister(4) - functions[pop()][1]); // Decrement the function argument offset register by the number of arguments this function took.
-                    i = pop(); //Return to calling instruction.
+                    storeInRegister(4, readFromRegister(4) - functions[pop()][1] - 1); // Decrement the function argument offset register by the number of arguments this function took.
+                    currentInstruction = pop(); //Return to calling instruction.
                 }else popTarget(b, 0);
                 break;
             case 0x09: //GET_REGISTER: a GET_REGISTER: Pushes the value of register a to the stack.
@@ -256,11 +260,11 @@ void interpret(int numInstructions){
                 break;
             case 0x14: //SET_MARKER: a SET_MARKER: Sets a marker at position a to the current instruction.
                 a = pop();
-                markers[a] = i;
+                markers[a] = currentInstruction;
                 break;
             case 0x15: //JUMP_TO: a JUMP_TO: Jump to the instruction specified by marker[a].
                 a = pop();
-                i = markers[a];
+                currentInstruction = markers[a];
                 break;
             case 0x1a: //CHAR: a CHAR : specifies that the previously pushed byte is a character and should be converted to a char when printed.
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_CHAR;
@@ -293,7 +297,7 @@ void interpret(int numInstructions){
             case 0x1e: //FUNCTION_DECLARE: a b FUNCTION_DECLARE: Creates a function with ID a, which takes the last b parameters pushed to the stack.
                 b = pop();
                 a = pop();
-                functions[a][0] = i;
+                functions[a][0] = currentInstruction;
                 functions[a][1] = b;
                 push(_IDENTIFIER_FUNCTION_DECLARE);
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FUNCTION_DECLARE;
@@ -304,12 +308,13 @@ void interpret(int numInstructions){
                 for(b = 1; b <= functions[a][1]; b ++){
                     storeInRegister(b + readFromRegister(4) + readFromRegister(3), pop()); //Pops off the last b arguments for use by the function, storing them in appropriate registers.
                 }
-                push(i); //Push the current instruction number for use later.
+                storeInRegister(b + readFromRegister(4) + readFromRegister(3), 12345678);
+                push(currentInstruction); //Push the current instruction number for use later.
                 push(a); //Push the function's id for reference when popping.
                 push(_IDENTIFIER_FUNCTION);
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_FUNCTION;
-                i = functions[a][0];
-                storeInRegister(4, readFromRegister(4) + functions[a][1]); //Increase the offset for functions, stored in register 4.
+                currentInstruction = functions[a][0];
+                storeInRegister(4, readFromRegister(4) + functions[a][1] + 1); //Increase the offset for functions, stored in register 4.
                 break;
             case 0x20: //RETURN: a RETURN: Pushes a to the stack after function execution ends.
                 b = specialIdentifierAtStackPosition[tail];
@@ -319,8 +324,8 @@ void interpret(int numInstructions){
                     pop(); //Until we get to a condition we want, let's keep popping values.
                 }
                 pop(); // Remove the function call from the stack
-                storeInRegister(4, readFromRegister(4) - functions[pop()][1]); // Decrement the function argument offset register by the number of arguments this function took.
-                i = pop(); //Return to calling instruction.
+                storeInRegister(4, readFromRegister(4) - functions[pop()][1] - 1); // Decrement the function argument offset register by the number of arguments this function took.
+                currentInstruction = pop(); //Return to calling instruction.
                 push(a); // Push a back onto the stack
                 specialIdentifierAtStackPosition[tail] = b;
                 break;
@@ -335,8 +340,8 @@ void interpret(int numInstructions){
                     pop(); //Until we get to a condition we want, let's keep popping values.
                 }
                 pop(); // Remove the function call from the stack
-                storeInRegister(4, readFromRegister(4) - functions[pop()][1]); // Decrement the function argument offset register by the number of arguments this function took.
-                i = pop(); //Return to calling instruction.
+                storeInRegister(4, readFromRegister(4) - functions[pop()][1] - 1); // Decrement the function argument offset register by the number of arguments this function took.
+                currentInstruction = pop(); //Return to calling instruction.
                 specialIdentifierAtStackPosition[tail] = b;
                 break;
             case 0x23: //PRINT_LONG_CHARS: a PRINT_LONG_CHARS: Prints the last a stack objects as characters
@@ -359,14 +364,15 @@ void interpret(int numInstructions){
 }
 
 int readFromRegister(int reg){
-    if(reg >= (sizeof(registers) / sizeof(registers[0]))) error("Register read error: Index greater than maximum register");
     if(reg < 0) error("Register read error: Negative index");
+    if(reg >= (sizeof(registers) / sizeof(registers[0]))) error("Register read error: Index greater than maximum register");
     return registers[reg];
 }
 
 void storeInRegister(int reg, int val){
-    if(reg >= (sizeof(registers) / sizeof(registers[0]))) error("Register write error: Index greater than maximum register");
+    if(reg == 1 && val < -1) error("HEY DON'T DO THAT DUMMY");
     if(reg < 0) error("Register write error: Negative index");
+    if(reg >= (sizeof(registers) / sizeof(registers[0]))) error("Register write error: Index greater than maximum register");
     registers[reg] = val;
 }
 
@@ -440,6 +446,9 @@ void push(int val){
 //If an error if ever thrown, stop execution of the program.
 void error(char* message){
     printf("[COMPILER] ERROR: %s\n", message);
+    printCallTrace();
+    printStack();
+    //printMemory();
     exit(1);
 }
 
@@ -458,4 +467,16 @@ void printStack(){
     printf("STACK: [");
     for(i; i <= tail; i ++) printf("%d, ", stack[i]);
     printf("]\n");
+}
+
+void printCallTrace(){
+    int i = tail;
+    printf("===== CALL TRACE =====\n");
+    printf("On line %d, instruction called: %d (L: %d, R: %d).\n", lineNumbers[currentInstruction], instructions[currentInstruction], instructions[currentInstruction - 1], instructions[currentInstruction + 1]);
+    for(i; i > -1; i --){
+        if(specialIdentifierAtStackPosition[i] == _IDENTIFIER_FUNCTION && stack[i] == _IDENTIFIER_FUNCTION){
+            printf("Function %d, called from line %d.\n", stack[i - 1], lineNumbers[stack[i - 2]]);
+        }
+    }
+    printf("=== END CALL TRACE ===\n");
 }
