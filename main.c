@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+#include <stdarg.h>
 
 /**
  * INDIGO COMPILER V1.0.6
@@ -181,7 +182,7 @@ void interpret(int numInstructions){
                 break;
             case 0x08: //END: END: Ends the current block.
                 b = getPosOfRecentStateChange(); // Find the closest conditional/state changing item in the stack.
-                if(b == -1) error("End cannot be matched to an opening call.");
+                if(b == -1) error("End cannot be matched to an opening call.\n");
                 if(stack[b] == _IDENTIFIER_FUNCTION){
                     popTarget(b, 1);
                     storeInRegister(4, readFromRegister(4) - functions[pop()][1] - 1); // Decrement the function argument offset register by the number of arguments this function took.
@@ -336,13 +337,13 @@ void interpret(int numInstructions){
                 break;
             case 0x22: //VOID_RETURN: VOID_RETURN: FUNCTIONS AS RETURN (0x20), BUT PUSHES NOTHING TO THE STACK.
                 while(!( (peek() == _IDENTIFIER_FUNCTION && specialIdentifierAtStackPosition[tail] == _IDENTIFIER_FUNCTION) ) ){
+
                     if(tail == -1) break;
                     pop(); //Until we get to a condition we want, let's keep popping values.
                 }
                 pop(); // Remove the function call from the stack
                 storeInRegister(4, readFromRegister(4) - functions[pop()][1] - 1); // Decrement the function argument offset register by the number of arguments this function took.
                 currentInstruction = pop(); //Return to calling instruction.
-                specialIdentifierAtStackPosition[tail] = b;
                 break;
             case 0x23: //PRINT_LONG_CHARS: a PRINT_LONG_CHARS: Prints the last a stack objects as characters
                 printf("[VM]: ");
@@ -364,15 +365,12 @@ void interpret(int numInstructions){
 }
 
 int readFromRegister(int reg){
-    if(reg < 0) error("Register read error: Negative index");
-    if(reg >= (sizeof(registers) / sizeof(registers[0]))) error("Register read error: Index greater than maximum register");
+    if(reg >= (sizeof(registers) / sizeof(registers[0])) || reg < 0) error("Attempted to read an invalid register: %d.\n", reg);
     return registers[reg];
 }
 
 void storeInRegister(int reg, int val){
-    if(reg == 1 && val < -1) error("HEY DON'T DO THAT DUMMY");
-    if(reg < 0) error("Register write error: Negative index");
-    if(reg >= (sizeof(registers) / sizeof(registers[0]))) error("Register write error: Index greater than maximum register");
+    if(reg >= (sizeof(registers) / sizeof(registers[0])) || reg < 0) error("Attempted to write to an invalid register: %d.\n", reg);
     registers[reg] = val;
 }
 
@@ -417,7 +415,7 @@ void popTarget(int target, int deleteRemainder){
 //Also resets the special registers back to zero.
 int pop(){
     if(tail < 0){
-        error("Attempting to pop an empty stack.");
+        error("Attempting to pop an empty stack.\n");
         return -1;
     }
     specialIdentifierAtStackPosition[tail] = 0; //Reset back to being not special
@@ -444,8 +442,12 @@ void push(int val){
 }
 
 //If an error if ever thrown, stop execution of the program.
-void error(char* message){
-    printf("[COMPILER] ERROR: %s\n", message);
+void error(char* message, ...){
+    fprintf(stderr, "Error on line %d.\n", lineNumbers[currentInstruction]);
+    va_list args;
+    va_start(args, message);
+    vfprintf(stderr, message, args);
+    va_end(args);
     printCallTrace();
     printStack();
     //printMemory();
@@ -465,7 +467,10 @@ void printMemory(){
 void printStack(){
     int i = 0;
     printf("STACK: [");
-    for(i; i <= tail; i ++) printf("%d, ", stack[i]);
+    for(i; i <= tail; i ++){
+        if(specialIdentifierAtStackPosition[i] >= 0) printf("%d, ", stack[i]);
+        else printf("(S) %d, ", stack[i]);
+    }
     printf("]\n");
 }
 
