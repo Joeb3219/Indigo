@@ -87,20 +87,35 @@ int processFile(FILE* file, int* theseInstructions, int startRegister){
     return k;
 }
 
-void readFileIntoMemory(char* fileName, int startRegister){
+int readFileIntoMemory(char* fileName){
     FILE *file;
     char line[2048] = {0};
-    int i = 0, j = startRegister;
+    int i = 0, j = 0, lengthOfFile = 0, actualRegistersUsed = 0;
+
+    file = fopen(fileName, "r");
+    fseek(file, 0, SEEK_END);
+    lengthOfFile = ftell(file);
+    rewind(file);
+    lengthOfFile += 3; // Request 3 more than length of file for the array descriptors.
+
+    // Get the correct number of registers
+    for(j = readFromRegister(1); j < sizeof(registers) / sizeof(registers[0]); j ++){
+        if(i == lengthOfFile) break;
+        if(registers[j] == readFromRegister(7)) i ++;
+        else i = 0;
+    }
+
+    j -= lengthOfFile;
 
     storeInRegister(j, readFromRegister(16)); //Push the ARRAY_SYMBOL to memory.
     storeInRegister(j + 1, readFromRegister(18)); //Indicate that this is a character array via CHAR_SYMBOL.
     j += 2;
-
-    file = fopen(fileName, "r");
+    actualRegistersUsed += 2;
 
     while (fgets(line, sizeof(line), file)) {
         for(i = 0; i < sizeof(line); i ++){ //Copy over non-space, non EOL characters to be processed.
             storeInRegister(j++, line[i]);
+            actualRegistersUsed ++;
             if(line[i] == '\n'){
                 i = sizeof(line);
                 continue;
@@ -109,10 +124,11 @@ void readFileIntoMemory(char* fileName, int startRegister){
     }
 
     storeInRegister(j++, readFromRegister(19)); //Indicate that the array is finished
-
-    storeInRegister(0, j);
+    actualRegistersUsed ++;
 
     fclose(file);
+
+    return j - actualRegistersUsed;
 }
 
 void interpret(int numInstructions){
@@ -287,13 +303,13 @@ void interpret(int numInstructions){
                 else push (b + 'a');
                 specialIdentifierAtStackPosition[tail] = _IDENTIFIER_CHAR;
                 break;
-            case 0x1d: //READ_FILE: a b READ_FILE: reads in instructions from file named a.txt starting at register b.
-                b = pop();
+            case 0x1d: //READ_FILE: a READ_FILE: reads in instructions from file named a.txt, pushing the memory address stored in back to the stack.
                 a = pop();
 
                 char fileName[12];
                 sprintf(fileName, "%d.txt", a);
-                readFileIntoMemory(fileName, b);
+                b = readFileIntoMemory(fileName);
+                push(b); // Push the starting register to the stack
                 break;
             case 0x1e: //FUNCTION_DECLARE: a b FUNCTION_DECLARE: Creates a function with ID a, which takes the last b parameters pushed to the stack.
                 b = pop();
@@ -306,6 +322,7 @@ void interpret(int numInstructions){
             case 0x1f: //FUNCTION_JUMP: a FUNCTION_JUMP: Jumps to a function with the id a.
                 a = pop(); // Pop the ID of the function we're jumping to.
                 // Push arguments onto the registers
+                if(a > sizeof(functions) || functions[a][0] == 0) error("Undefined function %d.\n", a);
                 for(b = 1; b <= functions[a][1]; b ++){
                     storeInRegister(b + readFromRegister(4) + readFromRegister(3), pop()); //Pops off the last b arguments for use by the function, storing them in appropriate registers.
                 }
